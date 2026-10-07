@@ -8,7 +8,7 @@ Non-intrusive, zero-exfiltration personal security self-audit.
   - Zero deps: Python stdlib only → single-binary / pip friendly.
 Usage: python3 scan.py [--lang ko|en] [--home PATH] [--json out.json] [--html report.html]
 """
-import os, re, json, subprocess, argparse, datetime, html, getpass, sys
+import os, re, json, subprocess, argparse, datetime, html, getpass, sys, ipaddress, stat
 try:
     import agent_guard as _ag  # 회피 변형 정규화(자격증명 재조립 탐지) 공유
 except ImportError:
@@ -51,6 +51,7 @@ AREA = {
     'ai':     {'ko': 'AI에이전트', 'en': 'AI-Agent'},
     'backup': {'ko': '백업',       'en': 'Backup'},
     'wifi':   {'ko': '와이파이',   'en': 'Wi-Fi'},
+    'fileaccess': {'ko': '파일감시', 'en': 'File-Watch'},
 }
 MSG = {
     'git_cred': {
@@ -121,6 +122,30 @@ MSG = {
     'wifi_advisory': {
         'ko': ('공유기 점검은 직접 확인 필요(자동 미측정)', 'WPS·공유기 기본 관리자 비번·펌웨어는 기기 밖이라 자동 점검 불가', '공유기 관리자 페이지에서 WPS 끄기·기본 비번 변경·펌웨어 업데이트를 직접 확인하세요.'),
         'en': ('Router items need manual check (not auto-measured)', 'WPS, default router admin password, firmware are off-device and cannot be auto-checked', 'In your router admin page: turn WPS off, change the default password, update firmware.')},
+    'fa_open': {
+        'ko': ('민감 파일을 연 프로세스 감지 ({proc} → {f})', '평소 목록(화이트리스트) 밖 프로세스가 민감 파일을 열고 있음 — 접근 이벤트만(내용 비열람)', '내가 실행한 게 아니면 그 프로세스를 확인·종료하세요.'),
+        'en': ('Process holding a sensitive file ({proc} → {f})', 'A non-whitelisted process has a sensitive file open — access event only (content not read)', 'If you did not start it, inspect/kill that process.')},
+    'fa_exfil': {
+        'ko': ('유출 의심 — 민감 파일 읽기 + 외부 연결 ({proc} → {f})', '민감 파일을 연 프로세스가 동시에 외부(비사설) 연결을 보유 — 읽기→송신 상관(전송 내용 비열람)', '즉시 그 프로세스·연결을 확인하고 네트워크를 끊는 것을 고려하세요.'),
+        'en': ('Possible exfiltration — sensitive read + outbound ({proc} → {f})', 'A process with a sensitive file open also holds an external (non-private) connection — read->send correlation (payload not inspected)', 'Inspect that process/connection now; consider cutting the network.')},
+    'fa_clean': {
+        'ko': ('민감 파일 비정상 접근 없음', '현재 스냅샷에서 화이트리스트 밖 프로세스의 민감 파일 열람 0', '정기 점검으로 변화를 계속 지켜봅니다.'),
+        'en': ('No abnormal sensitive-file access', 'No non-whitelisted process holds a watched file open in this snapshot', 'Keep watching via periodic checks.')},
+    'fa_none': {
+        'ko': ('감시 대상 민감 파일 없음', '와치리스트 경로가 이 기기에 존재하지 않음', '보호할 키·토큰 경로가 있으면 AHD_WATCH_PATHS로 지정하세요.'),
+        'en': ('No watched files present', 'Watchlist paths do not exist on this device', 'Set AHD_WATCH_PATHS to watch your key/token paths.')},
+    'fa_trunc': {
+        'ko': ('감시 범위가 상한으로 일부 생략됨 ({n}개 미감시)', '폴더 안 파일 열거 상한(전체 60개)을 넘어 민감 이름 우선으로 보고 나머지는 이번에 보지 못함 — 조용히 넘기지 않고 알립니다', '꼭 지킬 파일은 AHD_WATCH_PATHS에 파일 경로로 직접 지정하세요(직접 지정한 파일은 상한 없이 감시).'),
+        'en': ('Watch scope truncated by cap ({n} not watched)', 'Directory file enumeration cap (60 total) exceeded — sensitive-looking names first, the rest were not checked this run; reported, not silently skipped', 'Point AHD_WATCH_PATHS at the exact files you must protect (directly listed files are never capped).')},
+    'fa_advisory': {
+        'ko': ('감시 범위·한계(정직)', '스냅샷 방식(연속 실시간 아님)·루트 없이는 모든 read를 못 봄·암호화된 유출은 상관으로만 추정·정상 백업/동기화는 화이트리스트로 억제', '연속 실시간·커널 수준 포착은 로드맵(권한/데몬 필요).'),
+        'en': ('Scope & limits (honest)', 'Snapshot-based (not continuous real-time); without root not every read is visible; encrypted exfil is only inferred by correlation; normal backup/sync suppressed via whitelist', 'Continuous/kernel-level capture is on the roadmap (needs privilege/daemon).')},
+    'fa_symlink': {
+        'ko': ('감시경로 중 심링크 {n}건 — 실제 대상으로 해석해 감시', '지정 경로 자체가 심링크였던 건 — 조용히 제외하지 않고 realpath 대상을 감시 목록에 포함', '심링크 대상이 의도한 파일이 맞는지 확인하세요.'),
+        'en': ('{n} watch path(s) were symlinks — resolved to real target for monitoring', 'A watched path itself was a symlink — resolved via realpath and included rather than silently skipped', 'Confirm the symlink target is the file you intended to protect.')},
+    'fa_numeric_cmd': {
+        'ko': ('숫자명 프로세스 {n}건 — PID 열 고정 해석으로 보정', 'lsof COMMAND 열이 숫자뿐인 드문 케이스에서 PID 오판정 가능성을 구조적 열 위치로 보정', '참고용 — 별도 조치 불필요.'),
+        'en': ('{n} numeric-named process entr(y/ies) — corrected via fixed PID column', 'Rare case where the lsof COMMAND column is numeric-only; corrected by using the structurally fixed PID column instead of a heuristic scan', 'Informational only — no action needed.')},
 }
 UI = {
     'title':   {'ko': 'AI 해킹 보안 자가진단', 'en': 'AI-Hacking Self-Audit'},
@@ -152,6 +177,8 @@ WHY = {
               'en': "Ransomware doesn't lock you out — it takes your data hostage. Only a backup makes the ransom worthless."},
     'wifi': {'ko': "강한 비밀번호만으론 부족합니다. WPS·공유기 기본 관리자 비번·오래된 펌웨어·가짜 와이파이(이블트윈)로 비번과 무관하게 뚫릴 수 있습니다.",
              'en': "A strong password is not enough. WPS, a default router admin password, old firmware, or an evil-twin AP can get in regardless of your Wi-Fi password."},
+    'fileaccess': {'ko': "공격은 '파일을 읽어 빼가는 순간'에 완성됩니다. 키·토큰·금고 파일을 평소 안 읽던 프로세스가 열고 곧바로 밖으로 연결하면, 그게 유출의 현장입니다.",
+                   'en': "An attack completes the moment a file is read and shipped out. A process that never normally reads your keys/tokens opening one and then connecting outbound is exfiltration in progress."},
 }
 # ── 영역별 실제 점검 스텝 (라이브 스캔 피드용·실제 수행 항목) ──
 CHECKS = {
@@ -399,8 +426,172 @@ class Scan:
         else:
             self.add('INFO', 'wifi', 'wifi_advisory')  # linux: airport 없음 — 권고만
 
+    # SEC-013: 민감 파일 접근·유출 상관 — 정상 접근 프로세스(백업·동기화·Spotlight·브라우저)
+    _FA_WHITELIST = {
+        'mds', 'mds_stores', 'mdworker', 'mdworker_shared', 'mdsync', 'spotlight',
+        'backupd', 'backupd-helper', 'bird', 'cloudd', 'fileproviderd', 'nsurlsessiond',
+        'dropbox', 'onedrive', 'box', 'syncthing', 'fseventsd', 'revisiond', 'fsck',
+        'launchd', 'loginwindow', 'secd', 'trustd', 'opendirectoryd', 'distnoted',
+        'google chrome', 'google chrome helper', 'google chrome h', 'chrome',
+        'firefox', 'safari', 'com.apple.safari', 'brave browser', 'microsoft edge',
+        'arc', 'opera', 'vivaldi', 'chromium', 'webkit', 'com.apple.webkit.networking',
+    }
+
+    @staticmethod
+    def _fa_whitelisted(proc):
+        p = proc.lower()
+        return any(p == w or p.startswith(w + ' ') for w in Scan._FA_WHITELIST)  # 정확 일치 또는 '이름 공백…'(Helper 변형) — 'arcane'·'boxer' 접두 우회 차단
+
+    def _watch_paths(self):
+        # 기본 민감 경로(일반) + env AHD_WATCH_PATHS(콜론). 전체 디스크 무차별 금지 — 지정 경로만.
+        h = self.home
+        defaults = [
+            os.path.join(h, '.ssh'), os.path.join(h, '.aws', 'credentials'),
+            os.path.join(h, '.config', 'gcloud'), os.path.join(h, '.config', 'gh'),
+            os.path.join(h, '.netrc'), os.path.join(h, '.npmrc'), os.path.join(h, '.docker', 'config.json'),
+            os.path.join(h, '.kube', 'config'),
+            os.path.join(h, 'Library', 'Application Support', 'Google', 'Chrome', 'Default', 'Login Data'),
+            os.path.join(h, 'Library', 'Application Support', 'Firefox', 'Profiles'),
+        ]
+        extra = [p for p in os.environ.get('AHD_WATCH_PATHS', '').split(':') if p]
+        return [os.path.expanduser(p) for p in defaults + extra]
+
+    _FA_MAX_FILES = 60  # 전체 lsof 대상 상한(타임아웃 폭주 방지)
+
+    _FA_SENS = re.compile(r'(^id_|\.pem$|\.key$|\.p12$|\.pfx$|credential|token|secret|passw|login|^key\d*\.db$|cookie|hosts\.yml$|^config\.json$|^adc|\.netrc$)', re.I)
+    _FA_SKIP_DIRS = {'logs', 'log', 'cache', 'caches', 'node_modules', '.git', '__pycache__'}  # 소음 폴더(자격증명 아님)
+
+    @staticmethod
+    def _fa_expand(p, cap=30, trunc=None):
+        # 디렉터리는 lsof -- dir 이 안의 파일 열람을 못 잡음 → 최대 2단계까지 일반 파일을 열거해 각각 감시.
+        # 일반 파일만(소켓·FIFO·심링크 제외)·내용 비열람(이름만)·공개키(.pub)·known_hosts 류·로그/캐시 폴더 제외.
+        # 상한 초과 시 민감 이름(키·토큰·자격증명 류) 우선으로 채우고 나머지는 생략 — 생략 수는 trunc에 누적(무음 절단 금지).
+        if os.path.islink(p):
+            return []
+        if not os.path.isdir(p):
+            return [p]
+        found = []
+        try:
+            for root, dns, fns in os.walk(p, followlinks=False):
+                depth = os.path.relpath(root, p).count(os.sep) + (0 if root == p else 1)
+                if depth >= 2:
+                    dns[:] = []
+                dns[:] = sorted(d for d in dns if d.lower() not in Scan._FA_SKIP_DIRS and not os.path.islink(os.path.join(root, d)))
+                for f in sorted(fns):
+                    fp = os.path.join(root, f)
+                    if f.endswith('.pub') or f.startswith('known_hosts'):
+                        continue
+                    try:
+                        if not stat.S_ISREG(os.lstat(fp).st_mode):
+                            continue  # 소켓(ssh-agent)·FIFO·심링크 제외 — 일반 파일만(오탐 방지)
+                    except OSError:
+                        continue
+                    found.append(fp)
+                    if len(found) >= 5000:
+                        raise StopIteration
+        except StopIteration:
+            if trunc is not None:
+                trunc[0] += 1  # 열거 자체가 5000에서 중단됨(최소 1건 생략 표기)
+        except Exception:
+            pass
+        found.sort(key=lambda fp: 0 if Scan._FA_SENS.search(os.path.basename(fp)) else 1)  # 안정 정렬: 민감 이름 우선
+        if len(found) > cap and trunc is not None:
+            trunc[0] += len(found) - cap
+        return found[:cap]
+
+    @staticmethod
+    def _fa_external(line):
+        # lsof -iTCP 한 줄의 원격 주소가 외부(비사설·비루프백·비링크로컬)인지 — IPv4·IPv6 모두.
+        m = re.search(r'->(\[[0-9a-fA-F:.%a-z]+\]|\d+\.\d+\.\d+\.\d+):\d+', line)
+        if not m:
+            return False
+        try:
+            ip = ipaddress.ip_address(m.group(1).strip('[]').split('%')[0])
+        except ValueError:
+            return False
+        if getattr(ip, 'ipv4_mapped', None):
+            ip = ip.ipv4_mapped
+        return not (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified)
+
+    def file_access(self):
+        # 접근 이벤트(프로세스·경로·시각)만 — 파일 내용 비열람·외부 전송 0. 스냅샷(연속 실시간은 로드맵).
+        if OS != 'mac':
+            self.add('INFO', 'fileaccess', 'fa_advisory'); return  # lsof 기반 — win/linux는 설계 단계
+        existing = [p for p in self._watch_paths() if os.path.exists(p)]
+        if not existing:
+            self.add('INFO', 'fileaccess', 'fa_none'); return
+        trunc = [0]  # 생략 카운터(조용한 잘림 금지) — 사용자 지정 경로 수에는 상한 없음
+        direct, expanded = [], []
+        sym_n = 0  # SEC-013-FIX4 N1: 감시경로 자체가 심링크인 건수(참고용 — 미감시 0건 목표)
+        for p in existing:
+            rp = p
+            if os.path.islink(p):
+                # 구결함(N1): elif not islink(p) 가 심링크를 경고 없이 완전 제외 → fa_clean 거짓 클린.
+                # 수리: realpath로 실제 대상을 해석해 그 대상을 감시(심링크 자체를 건너뛰지 않음).
+                sym_n += 1
+                rp = os.path.realpath(p)
+                if not os.path.exists(rp):
+                    continue  # 대상 자체가 없는 깨진 심링크 — 감시 대상 없음(은폐 아님)
+            if os.path.isdir(rp):
+                expanded += [(p, fp) for fp in self._fa_expand(rp, trunc=trunc)]
+            else:
+                direct.append((p, rp))  # 직접 지정 파일(심링크면 realpath 대상) — 상한 없음
+        if sym_n:
+            self.add('INFO', 'fileaccess', 'fa_symlink', n=sym_n)
+        keep = self._FA_MAX_FILES
+        trunc[0] += max(0, len(expanded) - keep)
+        targets = direct + expanded[:keep]
+        opens = []  # (proc, pid, path) — 화이트리스트 밖만
+        numeric_cmd_n = 0  # SEC-013-FIX4 N2: COMMAND 자체가 숫자뿐인 이름이라 pid_i 오판정됐던 건수
+        for p, fp in targets:
+            out = run(['lsof', '-nP', '+c', '0', '--', fp])  # +c 0: 명령명 전체(절단 방지)
+            for l in out.splitlines()[1:]:
+                parts = l.split()
+                if len(parts) < 2:
+                    continue
+                if parts[0].isdigit():
+                    # N2 구결함: COMMAND가 숫자뿐인 이름(드문 헬퍼 프로세스)이면 아래 next(isdigit) 휴리스틱이
+                    # index 0(COMMAND)을 PID로 오판정해 이후 열·연결조회가 전부 어긋남.
+                    # +c 0 은 COMMAND를 단일 토큰으로 이스케이프 보장 → PID는 구조적으로 항상 parts[1].
+                    pid_i = 1
+                    numeric_cmd_n += 1
+                else:
+                    pid_i = next((i for i, t in enumerate(parts) if t.isdigit()), 1)
+                # FD·TYPE 열(PID·USER 다음)로만 판정 — 프로세스명이 'cwd'·'DIR'이어도 은폐 불가
+                fd = parts[pid_i + 2] if len(parts) > pid_i + 2 else ''
+                typ = parts[pid_i + 3] if len(parts) > pid_i + 3 else ''
+                if fd in ('cwd', 'rtd') or typ == 'DIR':
+                    continue  # 디렉터리 cwd 보유는 열람 아님 — 오탐 제외
+                proc = ' '.join(parts[:pid_i]) or parts[0]
+                # lsof +c 0 은 공백·특수문자를 \xNN 로 이스케이프 → 복원('Google\x20Chrome'→'Google Chrome')
+                proc = re.sub(r'\\x([0-9a-fA-F]{2})', lambda m: chr(int(m.group(1), 16)), proc)
+                pid = parts[pid_i] if pid_i < len(parts) else parts[1]
+                if not self._fa_whitelisted(proc):
+                    opens.append((proc, pid, fp))
+        seen = set()
+        for proc, pid, p in opens:
+            key = (proc, os.path.basename(p))
+            if key in seen:
+                continue
+            seen.add(key)
+            # 유출 상관: 이 프로세스가 외부(비사설) 연결도 보유하나 (연결 사실·대상만·내용 0)
+            # -a 필수: lsof는 선택 조건을 기본 OR 결합 → -p PID -iTCP가 시스템 전체 TCP를 반환하는 오탐 방지(AND).
+            conns = run(['lsof', '-nP', '-a', '-p', pid, '-iTCP', '-sTCP:ESTABLISHED'])
+            ext = any(self._fa_external(l) for l in conns.splitlines())
+            if ext:
+                self.add('HIGH', 'fileaccess', 'fa_exfil', proc=proc, f=os.path.basename(p))
+            else:
+                self.add('MED', 'fileaccess', 'fa_open', proc=proc, f=os.path.basename(p))
+        if trunc[0]:
+            self.add('INFO', 'fileaccess', 'fa_trunc', n=trunc[0])
+        if numeric_cmd_n:
+            self.add('INFO', 'fileaccess', 'fa_numeric_cmd', n=numeric_cmd_n)
+        if not opens:
+            self.add('INFO', 'fileaccess', 'fa_clean')
+        self.add('INFO', 'fileaccess', 'fa_advisory')
+
     def run_all(self):
-        for fn in (self.credentials, self.network, self.os_hardening, self.ai_agent, self.backup, self.wifi):
+        for fn in (self.credentials, self.network, self.os_hardening, self.ai_agent, self.backup, self.wifi, self.file_access):
             try: fn()
             except Exception: pass
         H = sum(1 for f in self.findings if f['sev']=='HIGH')
@@ -787,7 +978,7 @@ function render(){
   con.appendChild(el);
  });
 }
-function esc(s){return(s+'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function esc(s){return(s+'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 render();
 
 

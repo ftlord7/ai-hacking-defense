@@ -35,12 +35,13 @@ Detection catches common evasions, not all. Known gaps we have not closed yet:
 - Backup freshness rejects future-dated and empty commits, but a single trivial commit made just now still counts as a "recent backup" — it does not verify the backup is meaningful or restorable.
 - Wi-Fi checks read only your own current connection (encryption type, DNS servers, ARP for gateway-MAC duplication). Router-side items (WPS, the default admin password, firmware) are off-device and are NOT auto-checked — check them yourself in the router admin page. A duplicated gateway MAC is reported as a *possible* MITM, not a verdict (proxy ARP, mesh routers, or a VPN can cause it legitimately).
 - Vault/secret-access detection catches common obfuscations (base64, bidi, whitespace/quote split, and bare interpreter reads like `open(vault).read()`), but it is best-effort, not a guarantee: a read assigned to a variable and then printed/sent, a backslash-escaped command (e.g. `ca\t`), or copying/sourcing the file (`cp`, `source`) can still be missed — new evasions always exist.
+- Real-time file-access / exfil watch is snapshot-based (via `lsof`), not a continuous kernel-level stream: without root not every read is observed, encrypted exfiltration is only inferred from read->connect timing (payload never inspected), and normal backup/sync/browser access is whitelisted (a brand-new legitimate tool may false-positive). It watches only the paths you specify, never the whole disk.
 - Detection rates (e.g. a 72-cell internal battery) are measured on our own corpora; real-world coverage will differ, and new evasions always exist.
 
 
-## What's in the package (v0.1.7)
+## What's in the package (v0.1.8)
 Three stdlib-only command-line tools:
-- `ahd-scan` (also `ai-hacking-defense`) — the 6-area security self-audit (now incl. Wi-Fi) + HTML report. **Zero network.**
+- `ahd-scan` (also `ai-hacking-defense`) — the 7-area security self-audit (incl. Wi-Fi + file-access watch) + HTML report. **Zero network.**
 - `ahd-agent-guard` — prompt-injection detector (warn-only, no blocking). On a public *prompt-injection* evasion corpus it detects 29/30 (96.7%) at 0 false positives in our test. **This 96.7% is the injection detector's rate on that one corpus — it is not an overall "defense rate" across every attack type.** **Zero network.** `echo "<text>" | ahd-agent-guard`
 - `ahd-threat-feed` — refreshes public vulnerability feeds (OSV, CISA KEV, EPSS) to a local cache. **GET-only** of public databases from a fixed allowlist — none of your data is ever sent.
 
