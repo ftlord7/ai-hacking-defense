@@ -41,3 +41,10 @@ Three stdlib-only command-line tools:
 
 ### Not in the package (internal-only, not advertised)
 This package detects and reports. It does **not** auto-block, run a background dashboard, or hook into your pipelines. "Warn-only" is literal — see each report card's limits.
+
+### Reproduce the detection rate yourself
+```
+pip install ai-hacking-defense
+python3 reproduce_detection.py   # prints detection % and false-positive % on a public evasion corpus
+```
+It reports **29/30 = 96.7% detection at 0 false positives** on our standard corpus (one honest miss: full letter-spacing — new evasions always exist).
