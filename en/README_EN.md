@@ -33,12 +33,13 @@ macOS: all checks verified. Windows/Linux: experimental — runs, but not yet fu
 Detection catches common evasions, not all. Known gaps we have not closed yet:
 - SSH private-key detection reads the PEM header in the first 8KB; a key hidden past 8KB, or in a non-PEM container (e.g. PuTTY `.ppk`), may be missed.
 - Backup freshness rejects future-dated and empty commits, but a single trivial commit made just now still counts as a "recent backup" — it does not verify the backup is meaningful or restorable.
+- Wi-Fi checks read only your own current connection (encryption type, DNS servers, ARP for gateway-MAC duplication). Router-side items (WPS, the default admin password, firmware) are off-device and are NOT auto-checked — check them yourself in the router admin page. A duplicated gateway MAC is reported as a *possible* MITM, not a verdict (proxy ARP, mesh routers, or a VPN can cause it legitimately).
 - Detection rates (e.g. a 72-cell internal battery) are measured on our own corpora; real-world coverage will differ, and new evasions always exist.
 
 
-## What's in the package (v0.1.5)
+## What's in the package (v0.1.6)
 Three stdlib-only command-line tools:
-- `ahd-scan` (also `ai-hacking-defense`) — the 5-area security self-audit + HTML report. **Zero network.**
+- `ahd-scan` (also `ai-hacking-defense`) — the 6-area security self-audit (now incl. Wi-Fi) + HTML report. **Zero network.**
 - `ahd-agent-guard` — prompt-injection detector (warn-only, no blocking). On a public *prompt-injection* evasion corpus it detects 29/30 (96.7%) at 0 false positives in our test. **This 96.7% is the injection detector's rate on that one corpus — not an overall "defense rate" across every attack type.** **Zero network.** `echo "<text>" | ahd-agent-guard`
 - `ahd-threat-feed` — refreshes public vulnerability feeds (OSV, CISA KEV, EPSS) to a local cache. **GET-only** of public databases from a fixed allowlist — none of your data is ever sent.
 

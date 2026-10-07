@@ -50,6 +50,7 @@ AREA = {
     'os':     {'ko': 'OS',         'en': 'OS'},
     'ai':     {'ko': 'AI에이전트', 'en': 'AI-Agent'},
     'backup': {'ko': '백업',       'en': 'Backup'},
+    'wifi':   {'ko': '와이파이',   'en': 'Wi-Fi'},
 }
 MSG = {
     'git_cred': {
@@ -99,6 +100,27 @@ MSG = {
     'backup_repo': {
         'ko': ('저장소 자동 백업 가동 중 (마지막 커밋 {m}분 전)', '코드·기록은 매시간 저장소 커밋으로 백업됨 — 단 같은 기기 안이라 디스크 손실에는 약함', '기기 밖 사본(Time Machine·클라우드)을 추가하면 더 안전합니다. 복원 리허설은 아직 안 했어요.'),
         'en': ('Repository auto-backup active (last commit {m}m ago)', 'Code/records backed up hourly via repo commits — same-disk only, weak against disk loss', 'Add an off-device copy (Time Machine/cloud). Restore rehearsal not yet done.')},
+    'wifi_enc_ok': {
+        'ko': ('와이파이 암호화 양호 ({v})', '현재 연결된 네트워크가 WPA2/WPA3로 암호화됨', '유지. 가능하면 WPA3로 올리세요.'),
+        'en': ('Wi-Fi encryption OK ({v})', 'Current network uses WPA2/WPA3', 'Keep it. Move to WPA3 if available.')},
+    'wifi_enc_weak': {
+        'ko': ('와이파이 암호화 취약 ({v})', 'WEP·개방(암호 없음) 네트워크 — 주변에서 통신을 엿볼 수 있음', '즉시 WPA2/WPA3로 변경하거나 해당 네트워크 사용 중지.'),
+        'en': ('Weak Wi-Fi encryption ({v})', 'WEP/open network — traffic can be sniffed nearby', 'Switch to WPA2/WPA3 now, or stop using it.')},
+    'wifi_enc_old': {
+        'ko': ('구형 와이파이 암호화 ({v})', 'WPA1/TKIP 등 구형 방식 — WPA2/WPA3보다 약하고 알려진 공격이 있음', '공유기에서 WPA2/WPA3(AES)로 올리세요.'),
+        'en': ('Legacy Wi-Fi encryption ({v})', 'WPA1/TKIP — weaker than WPA2/WPA3 with known attacks', 'Upgrade to WPA2/WPA3 (AES) on the router.')},
+    'wifi_enc_unknown': {
+        'ko': ('와이파이 암호화 확인 불가 ({v})', '인식하지 못한 보안 표기 — 안전 여부를 단정하지 않음(과장 금지)', '공유기 설정에서 WPA2/WPA3 사용 여부를 직접 확인하세요.'),
+        'en': ('Wi-Fi encryption unverified ({v})', 'Unrecognized security value — not asserting safe/unsafe', 'Check WPA2/WPA3 in your router settings.')},
+    'wifi_dns': {
+        'ko': ('DNS 서버 {n}개 사용 중', '현재 DNS: {d}', '모르는 서버가 있으면 ISP·공용(1.1.1.1·8.8.8.8) 또는 신뢰 resolver로 바꾸세요(DNS 하이재킹 점검).'),
+        'en': ('{n} DNS server(s) in use', 'Current DNS: {d}', 'If any is unfamiliar, switch to your ISP/public (1.1.1.1/8.8.8.8) or a trusted resolver (DNS hijack check).')},
+    'wifi_arp_dup': {
+        'ko': ('게이트웨이 MAC 중복 (중간자 의심 — 단정 아님)', '게이트웨이와 같은 MAC이 다른 IP에도 보임: {d}. 중간자(이블트윈/ARP 스푸핑)일 수 있으나, 프록시 ARP·메시 공유기·VPN에서는 정상일 수도 있습니다.', '설정한 적 없는 구성이면 네트워크를 바꾸거나 관리자에게 확인하세요.'),
+        'en': ('Gateway MAC duplicated (possible MITM — not conclusive)', 'Gateway MAC also seen on other IPs: {d}. Could be man-in-the-middle, but proxy ARP, mesh routers, or a VPN can also cause this legitimately.', 'If you did not set this up, change network or check with admin.')},
+    'wifi_advisory': {
+        'ko': ('공유기 점검은 직접 확인 필요(자동 미측정)', 'WPS·공유기 기본 관리자 비번·펌웨어는 기기 밖이라 자동 점검 불가', '공유기 관리자 페이지에서 WPS 끄기·기본 비번 변경·펌웨어 업데이트를 직접 확인하세요.'),
+        'en': ('Router items need manual check (not auto-measured)', 'WPS, default router admin password, firmware are off-device and cannot be auto-checked', 'In your router admin page: turn WPS off, change the default password, update firmware.')},
 }
 UI = {
     'title':   {'ko': 'AI 해킹 보안 자가진단', 'en': 'AI-Hacking Self-Audit'},
@@ -128,6 +150,8 @@ WHY = {
              'en': "AI tools act on your behalf. If their keys leak, an attacker impersonates you through the AI."},
     'backup':{'ko': "랜섬웨어는 당신을 막지 않습니다 — 당신의 데이터를 인질로 잡습니다. 백업만이 몸값을 무력화합니다.",
               'en': "Ransomware doesn't lock you out — it takes your data hostage. Only a backup makes the ransom worthless."},
+    'wifi': {'ko': "강한 비밀번호만으론 부족합니다. WPS·공유기 기본 관리자 비번·오래된 펌웨어·가짜 와이파이(이블트윈)로 비번과 무관하게 뚫릴 수 있습니다.",
+             'en': "A strong password is not enough. WPS, a default router admin password, old firmware, or an evil-twin AP can get in regardless of your Wi-Fi password."},
 }
 # ── 영역별 실제 점검 스텝 (라이브 스캔 피드용·실제 수행 항목) ──
 CHECKS = {
@@ -327,8 +351,56 @@ class Scan:
                 else: self.add('MED','backup','no_backup')
         # linux: 표준 백업 메커니즘 없음 — 오탐 방지 위해 미판정
 
+    def _classify_wifi_sec(self, sec):
+        # 암호화 표기 분류 — OWE 오판 제외·WPA1/TKIP 구형 경고·미인식은 '확인 불가'(단정 금지).
+        low = sec.lower()
+        if 'enhanced open' in low or re.search(r'\bowe\b', low):
+            self.add('INFO', 'wifi', 'wifi_enc_ok', v=sec)       # OWE=암호화된 개방망(안전)
+        elif re.search(r'wpa3|wpa2', low):
+            self.add('INFO', 'wifi', 'wifi_enc_ok', v=sec)
+        elif 'wep' in low or low in ('none', 'open', 'open system', '없음') or low.startswith('open'):
+            self.add('HIGH', 'wifi', 'wifi_enc_weak', v=sec)     # WEP·개방(암호 없음)
+        elif 'wpa' in low or 'tkip' in low:
+            self.add('MED', 'wifi', 'wifi_enc_old', v=sec)       # WPA1/TKIP 구형
+        else:
+            self.add('INFO', 'wifi', 'wifi_enc_unknown', v=sec)  # 미인식 = 확인 불가
+
+    def wifi(self):
+        # 내 와이파이/네트워크 입구 점검 — 내 연결 상태만. 남의 네트워크 스캔·크래킹 0. 로컬 명령만(외부 전송 0).
+        if OS == 'mac':
+            sp = run(['system_profiler', 'SPAirPortDataType'])
+            m = re.search(r'Current Network Information:.*?Security:\s*([^\n]+)', sp, re.S)
+            if m and m.group(1).strip():
+                self._classify_wifi_sec(m.group(1).strip())
+            dns = run(['scutil', '--dns'])
+            servers = sorted(set(re.findall(r'nameserver\[\d+\]\s*:\s*([0-9A-Fa-f.:]+)', dns)))
+            if servers:
+                self.add('INFO', 'wifi', 'wifi_dns', n=len(servers), d=', '.join(servers[:6]))
+            gw = ''
+            for l in run(['route', '-n', 'get', 'default']).splitlines():
+                mm = re.search(r'gateway:\s*([\d.]+)', l)
+                if mm: gw = mm.group(1); break
+            pairs = re.findall(r'\(([\d.]+)\)\s+at\s+([0-9a-f:]+)', run(['arp', '-an']))
+            if gw:
+                for ip, mac in pairs:
+                    if ip == gw and mac != '(incomplete)':
+                        others = [i for i, m2 in pairs if m2 == mac and i != gw]
+                        if others: self.add('MED', 'wifi', 'wifi_arp_dup', d=f"{mac} → {', '.join(others[:3])}")
+            self.add('INFO', 'wifi', 'wifi_advisory')
+        elif OS == 'win':
+            wl = run(['netsh', 'wlan', 'show', 'interfaces'])
+            m = re.search(r'Authentication\s*:\s*([^\n]+)', wl)
+            if m and m.group(1).strip():
+                self._classify_wifi_sec(m.group(1).strip())
+            dns = run(['netsh', 'interface', 'ip', 'show', 'dns'])
+            servers = sorted(set(re.findall(r'(\d+\.\d+\.\d+\.\d+)', dns)))
+            if servers: self.add('INFO', 'wifi', 'wifi_dns', n=len(servers), d=', '.join(servers[:6]))
+            self.add('INFO', 'wifi', 'wifi_advisory')
+        else:
+            self.add('INFO', 'wifi', 'wifi_advisory')  # linux: airport 없음 — 권고만
+
     def run_all(self):
-        for fn in (self.credentials, self.network, self.os_hardening, self.ai_agent, self.backup):
+        for fn in (self.credentials, self.network, self.os_hardening, self.ai_agent, self.backup, self.wifi):
             try: fn()
             except Exception: pass
         H = sum(1 for f in self.findings if f['sev']=='HIGH')
