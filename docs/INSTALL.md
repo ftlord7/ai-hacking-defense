@@ -1,4 +1,4 @@
-# 설치 가이드 (한국어) — AI-Hacking Auto-Defense Scanner
+# 설치 가이드 (한국어) — AI-Hacking Self-Audit
 
 > 외부로 단 1바이트도 보내지 않는 개인 보안 자가진단 도구입니다. 설치부터 첫 리포트까지 3분이면 됩니다.
 > English guide: [INSTALL_EN.md](INSTALL_EN.md)

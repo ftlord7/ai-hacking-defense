@@ -1,4 +1,4 @@
-# Install Guide (English) — AI-Hacking Auto-Defense Scanner
+# Install Guide (English) — AI-Hacking Self-Audit
 
 > A personal security self-audit that never sends a single byte off your machine. Install to first report in ~3 minutes.
 > 한국어 가이드: [INSTALL.md](INSTALL.md)

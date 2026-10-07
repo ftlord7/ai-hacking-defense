@@ -1,4 +1,4 @@
-# 🛡️ AI-Hacking Auto-Defense Scanner (MVP v0.1)
+# 🛡️ AI-Hacking Self-Audit (MVP v0.1)
 A **non-intrusive, zero-exfiltration** personal security self-audit for macOS.
 
 ## Why

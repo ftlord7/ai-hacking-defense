@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""AI Hacking Auto-Defense Scanner / AI 해킹 자동 대응 솔루션 (MVP v0.1)
+"""AI-Hacking Self-Audit / AI 해킹 보안 자가진단 (MVP v0.1)
 Non-intrusive, zero-exfiltration personal security self-audit.
   - Non-intrusive: reads local settings/permissions/git/network only. No exploiting.
   - Zero-exfiltration: 100% local. No network calls (no socket/urllib/requests imports).
@@ -71,7 +71,7 @@ MSG = {
         'en': ('Repository auto-backup active (last commit {m}m ago)', 'Code/records backed up hourly via repo commits — same-disk only, weak against disk loss', 'Add an off-device copy (Time Machine/cloud). Restore rehearsal not yet done.')},
 }
 UI = {
-    'title':   {'ko': 'AI 해킹 자동 대응 솔루션', 'en': 'AI-Hacking Auto-Defense'},
+    'title':   {'ko': 'AI 해킹 보안 자가진단', 'en': 'AI-Hacking Self-Audit'},
     'rep':     {'ko': '보안 리포트', 'en': 'Security Report'},
     'of':      {'ko': '님의 기기 보안 리포트', 'en': "'s device"},
     'subtail': {'ko': '비침투 자가진단', 'en': 'non-intrusive self-audit'},
@@ -122,7 +122,7 @@ UISTR = {
            'export':'내보내기','print':'인쇄','local':'100% 로컬 · 외부 전송 0',
            'local_more':'이 진단은 당신의 기기에서만 실행됩니다. 파일·비밀번호·데이터가 외부로 전송되지 않습니다(네트워크 전송 0). 비밀번호 값은 기록하지 않고, 위험이 "어디"에 있는지만 알려줍니다.',
            'scanned':'진단 시각','whatscore':'점수가 낮을수록 공격에 노출된 틈이 많다는 뜻입니다. 항목을 눌러 하나씩 닫아 보세요.'},
-    'en': {'brand':'AI-Hacking Auto-Defense','hero_sub':"'s device immunity",'immunity':'Immunity score',
+    'en': {'brand':'AI-Hacking Self-Audit','hero_sub':"'s device immunity",'immunity':'Immunity score',
            'v_good':'Healthy','v_warn':'Needs attention','v_crit':'At risk',
            'vitals':'Vitals by area','monitor_title':'🔎 Live scan monitor · auto-checking','scanning':'scanning','scandone':'checked','sec_find':'Findings','net_title':'🟢 Live defense network','watching':'LIVE','live_watch':'Live monitoring · 5 areas protected','all':'All','crit':'Critical','warn':'Warning','info':'Info',
            'findings':'findings','clean':'No issues found. Your device is fully hardened.',
@@ -283,7 +283,7 @@ class Scan:
                 'user': getpass.getuser(), 'score': max(0, 100-H*12-M*5), 'high': H, 'med': M, 'findings': self.findings}
 
 _DASHBOARD = r"""<!doctype html><html lang="__L__"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>AI-Hacking Auto-Defense</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>AI-Hacking Self-Audit</title>
 <style>
 :root{--ink:#0E1922;--surf:#15232E;--surf2:#1B2C38;--line:#283a46;--text:#EAF1F4;--muted:#90A4AF;--faint:#62788699;
 --crit:#FF6B6B;--warn:#FFC24B;--good:#36D399;--info:#5AB0FF;--r:18px;
@@ -294,7 +294,7 @@ body{font-family:var(--sans);background:
 radial-gradient(1200px 600px at 80% -10%,#15303a 0,transparent 55%),
 radial-gradient(900px 500px at -10% 10%,#172a38 0,transparent 50%),var(--ink);
 color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;line-height:1.5}
-.wrap{max-width:900px;margin:0 auto;padding:22px 18px 60px}
+.wrap{width:100%;max-width:clamp(900px,95vw,3360px);margin:0 auto;padding:clamp(14px,1.6vw,28px) clamp(14px,2vw,40px) 60px}
 header{display:flex;align-items:center;gap:12px;margin-bottom:26px}
 .logo{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em}
 .logo .mk{width:30px;height:30px;border-radius:9px;background:linear-gradient(145deg,var(--good),#1b9e78);
@@ -314,16 +314,16 @@ border-radius:var(--r);padding:26px 28px;position:relative;overflow:hidden}
 .ring .bg{stroke:#223642}
 .ring .fg{transition:stroke-dashoffset 1.4s cubic-bezier(.22,1,.36,1);stroke:var(--good)}
 .ringnum{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.ringnum b{font-family:var(--round);font-size:52px;font-weight:800;line-height:1;letter-spacing:-.02em}
+.ringnum b{font-family:var(--round);font-size:clamp(38px,4vw,56px);font-weight:800;line-height:1;letter-spacing:-.02em}
 .ringnum span{font-size:11px;color:var(--muted);margin-top:3px}
 .verdict{min-width:0}
 .verdict .vtag{display:inline-block;font-size:13px;font-weight:700;padding:4px 12px;border-radius:999px;margin-bottom:10px}
-.verdict h1{font-size:25px;font-weight:700;letter-spacing:-.02em;margin-bottom:6px}
+.verdict h1{font-size:clamp(19px,2.2vw,30px);font-weight:700;letter-spacing:-.02em;margin-bottom:6px}
 .verdict p{color:var(--muted);font-size:13.5px;max-width:46ch}
 .verdict .meta{color:var(--faint);font-size:12px;margin-top:12px}
 /* vitals */
 .sec-h{font-size:13px;color:var(--muted);margin:30px 2px 12px;font-weight:600}
-.vitals{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.vitals{display:grid;grid-template-columns:repeat(auto-fit,minmax(clamp(132px,13vw,190px),1fr));gap:clamp(8px,0.9vw,14px)}
 .vital{background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:13px 13px 15px;cursor:pointer;
 text-align:left;transition:transform .12s,border-color .15s;color:inherit;font:inherit}
 .vital:hover{transform:translateY(-2px);border-color:#3b5464}
@@ -380,7 +380,7 @@ footer{margin-top:30px;color:var(--faint);font-size:11.5px;line-height:1.7;borde
  .fnode .feed{min-height:70px}
 }
 /* 보안 모듈 카드 (Q-048) */
-.cardgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;margin-bottom:8px}
+.cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(clamp(270px,22vw,360px),1fr));gap:clamp(10px,1.1vw,18px);margin-bottom:8px}
 @media (min-width:2400px){.cardgrid{grid-template-columns:repeat(auto-fill,minmax(420px,1fr))}}
 .mcard{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:16px 16px 14px;display:flex;flex-direction:column;gap:9px;min-width:0}
 .mcard.alert{border-color:var(--crit);box-shadow:0 0 0 1px var(--crit) inset}
