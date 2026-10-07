@@ -240,6 +240,65 @@ def _decode_blobs(text):
     return out
 
 
+# ── SEC-006: 회피 변형 정규화(자격증명·금고 재조립 탐지) ──────────────
+# 실행 없음·크기 상한·순수 문자열 변환. base64/유니코드(제로폭)/bidi역순/공백·따옴표분할/hex 되돌림.
+_RE_QUOTE_SPLIT = re.compile(r"""(?<=\w)(?:""|'')(?=\w)""")  # va""ult → vault
+
+
+def _strip_hidden(s):
+    return "".join(ch for ch in s if not _is_hidden(ch))
+
+
+def norm_variants(text, _depth=0):
+    """회피 변형을 되돌린 후보 문자열 목록(원문 포함). 자격/금고 정규식을 각 후보에 적용해 재조립 탐지."""
+    if not text:
+        return []
+    out, seen = [], set()
+    def push(s):
+        if s and s not in seen:
+            seen.add(s); out.append(s)
+    push(text)
+    base = _strip_hidden(unicodedata.normalize("NFKC", text))  # 유니코드(제로폭·bidi 제어) 제거
+    push(base)
+    push(base[::-1])                                            # 역순(bidi) 복원
+    deq = base.replace('""', "").replace("''", "")             # 따옴표 분할 복원
+    push(deq)
+    push(re.sub(r"(?<=[\w+/=-]) (?=[\w+/=-])", "", deq))       # 공백 분할 복원(키/경로 토큰 사이)
+    if _depth == 0:                                             # 인코딩 블롭 디코드(원문·정규화 양쪽)
+        for src in (text, base, deq):
+            for _k, s in _decode_blobs(src):
+                for v in norm_variants(s, _depth + 1):
+                    push(v)
+        # 토큰 단위 디코드(구분자 인접 blob 복원 — 예: KEY=<base64>, ref:<hex>)
+        for tok in re.split(r"[=:;,\s|<>\"'()]+", base):
+            for s in _decode_token(tok):
+                for v in norm_variants(s, _depth + 1):
+                    push(v)
+    return out
+
+
+def _decode_token(tok):
+    """단일 토큰을 base64/hex로 디코드 시도(구분자 인접 blob용). 실행 없음·크기 상한."""
+    outs = []
+    if len(tok) >= 16:
+        core = tok.rstrip("=")
+        if re.fullmatch(r"[A-Za-z0-9+/]+", core) and not (core.isalpha() and (core.islower() or core.isupper())):
+            try:
+                b = base64.b64decode(core + "=" * (-len(core) % 4), validate=True)
+                if len(b) <= MAX_DECODE_BYTES and (s := _printable_text(b)):
+                    outs.append(s)
+            except (binascii.Error, ValueError):
+                pass
+        if len(tok) % 2 == 0 and re.fullmatch(r"[0-9A-Fa-f]+", tok):
+            try:
+                b = bytes.fromhex(tok)
+                if len(b) <= MAX_DECODE_BYTES and (s := _printable_text(b)):
+                    outs.append(s)
+            except ValueError:
+                pass
+    return outs
+
+
 def _core_rules(text):
     """R4~R7 + R8 — 디코드 재검사에도 공용. {rule: count}"""
     hits = {}
@@ -414,9 +473,12 @@ def tool_class(tool_name, tool_input=""):
 
 
 def vault_touch(cmd):
-    """vault_guard 연계: 금고 접근이 있었는지 여부만 판정(출력성 명령 동시 매칭 = vault_guard가 deny할 대상)."""
-    v = bool(_VAULT_RE.search(cmd or ""))
-    return {"vault": v, "vault_guard_would_deny": v and bool(_OUTCMD_RE.search(cmd or ""))}
+    """vault_guard 연계: 금고 접근이 있었는지 여부만 판정(출력성 명령 동시 매칭 = vault_guard가 deny할 대상).
+    SEC-006: 회피 변형(base64/유니코드/bidi/공백·따옴표분할/hex)을 정규화해 재조립 탐지 + 인터프리터 읽기 포함."""
+    variants = norm_variants(cmd or "")
+    v = any(_VAULT_RE.search(x) for x in variants)
+    out = any(_OUTCMD_RE.search(x) for x in variants)
+    return {"vault": v, "vault_guard_would_deny": v and out}
 
 
 # ── 기록(경고모드의 본체) + 세션 상관 ───────────────────────────────

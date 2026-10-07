@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-hacking-defense"
-version = "0.1.3"
+version = "0.1.4"
 description = "AI-Hacking Self-Audit — non-intrusive, zero-exfiltration personal security self-audit for the AI-hacking era."
 readme = "en/README_EN.md"
 requires-python = ">=3.8"

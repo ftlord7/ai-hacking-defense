@@ -30,10 +30,10 @@ sending a single byte off your machine.
 macOS: all checks verified. Windows/Linux: experimental — runs, but not yet fully verified.
 
 
-## What's in the package (v0.1.2)
+## What's in the package (v0.1.4)
 Three stdlib-only command-line tools:
 - `ahd-scan` (also `ai-hacking-defense`) — the 5-area security self-audit + HTML report. **Zero network.**
-- `ahd-agent-guard` — prompt-injection detector (warn-only, no blocking). Detects 29/30 (96.7%) of a public evasion corpus at 0 false positives in our test. **Zero network.** `echo "<text>" | ahd-agent-guard`
+- `ahd-agent-guard` — prompt-injection detector (warn-only, no blocking). On a public *prompt-injection* evasion corpus it detects 29/30 (96.7%) at 0 false positives in our test. **This 96.7% is the injection detector's rate on that one corpus — it is not an overall "defense rate" across every attack type.** **Zero network.** `echo "<text>" | ahd-agent-guard`
 - `ahd-threat-feed` — refreshes public vulnerability feeds (OSV, CISA KEV, EPSS) to a local cache. **GET-only** of public databases from a fixed allowlist — none of your data is ever sent.
 
 ### "Zero-exfiltration" precisely
@@ -47,4 +47,4 @@ This package detects and reports. It does **not** auto-block, run a background d
 pip install ai-hacking-defense
 python3 reproduce_detection.py   # prints detection % and false-positive % on a public evasion corpus
 ```
-It reports **29/30 = 96.7% detection at 0 false positives** on our standard corpus (one honest miss: full letter-spacing — new evasions always exist).
+It reports **29/30 = 96.7% detection at 0 false positives** on our standard *prompt-injection* corpus (one honest miss: full letter-spacing — new evasions always exist). Scope note: this figure measures the prompt-injection detector only. Detection against other attack types (credential, vault, network) is measured separately and is lower — we do not roll these into a single "defense rate."

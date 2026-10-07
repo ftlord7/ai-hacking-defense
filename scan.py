@@ -9,6 +9,15 @@ Non-intrusive, zero-exfiltration personal security self-audit.
 Usage: python3 scan.py [--lang ko|en] [--home PATH] [--json out.json] [--html report.html]
 """
 import os, re, json, subprocess, argparse, datetime, html, getpass, sys
+try:
+    import agent_guard as _ag  # 회피 변형 정규화(자격증명 재조립 탐지) 공유
+except ImportError:
+    _ag = None
+
+# 히스토리 노출 키 패턴(공백/인코딩 회피 후보에도 적용)
+_HIST_KEY_RE = re.compile(r'(sk-[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_\-]{30,}|xox[baprs]-[A-Za-z0-9\-]{10,}|ghp_[A-Za-z0-9]{30,}|Bearer [A-Za-z0-9._\-]{20,})')
+# 회피 의심 라인만 정규화(비용 제한): 은닉문자·긴 base64/hex 토큰·토큰사이 공백·bidi
+_HIST_SUSP_RE = re.compile(r'[​-‏‪-‮⁠-⁩﻿]|[A-Za-z0-9+/]{32,}={0,2}|(?:[0-9A-Fa-f]{2}){24,}|(?:[A-Za-z0-9]{1,8} ){3,}[A-Za-z0-9]')
 
 HOME = os.path.expanduser('~')
 OS = 'mac' if sys.platform == 'darwin' else 'win' if sys.platform.startswith('win') else 'linux'
@@ -179,7 +188,14 @@ class Scan:
             if os.path.isfile(p):
                 try: txt = open(p, errors='ignore').read()
                 except Exception: continue
-                n = len(re.findall(r'(sk-[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_\-]{30,}|xox[baprs]-[A-Za-z0-9\-]{10,}|ghp_[A-Za-z0-9]{30,}|Bearer [A-Za-z0-9._\-]{20,})', txt))
+                n = 0
+                for line in txt.splitlines():
+                    if _HIST_KEY_RE.search(line):
+                        n += 1; continue
+                    # 회피 의심 라인만 정규화 후보에 재검(평문 미매칭 시)
+                    if _ag is not None and _HIST_SUSP_RE.search(line):
+                        if any(_HIST_KEY_RE.search(v) for v in _ag.norm_variants(line)):
+                            n += 1
                 if n: self.add('MED','cred','hist_key', h=os.path.basename(hist), n=n)
 
     def network(self):
