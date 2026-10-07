@@ -19,6 +19,27 @@ _HIST_KEY_RE = re.compile(r'(sk-[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_\-]{30,}|xox[bap
 # 회피 의심 라인만 정규화(비용 제한): 은닉문자·긴 base64/hex 토큰·토큰사이 공백·bidi
 _HIST_SUSP_RE = re.compile(r'[​-‏‪-‮⁠-⁩﻿]|[A-Za-z0-9+/]{32,}={0,2}|(?:[0-9A-Fa-f]{2}){24,}|(?:[A-Za-z0-9]{1,8} ){3,}[A-Za-z0-9]')
 
+# 개인키 내용 탐지(파일명으로 숨긴 키 적발). PEM 헤더 또는 base64 래핑 PEM.
+def _is_private_key_file(path):
+    try:
+        with open(path, 'rb') as fh:
+            head = fh.read(8192)
+    except Exception:
+        return False
+    if b'PRIVATE KEY' in head:
+        return True
+    import base64 as _b64
+    s = head.strip()
+    if 40 <= len(s) <= 8192 and re.fullmatch(rb'[A-Za-z0-9+/\s]+={0,2}', s):
+        try:
+            joined = b''.join(s.split())
+            dec = _b64.b64decode(joined + b'=' * (-len(joined) % 4), validate=False)
+            if b'PRIVATE KEY' in dec:
+                return True
+        except Exception:
+            pass
+    return False
+
 HOME = os.path.expanduser('~')
 OS = 'mac' if sys.platform == 'darwin' else 'win' if sys.platform.startswith('win') else 'linux'
 
@@ -177,10 +198,15 @@ class Scan:
         if os.path.isdir(ssh):
             for f in os.listdir(ssh):
                 p = os.path.join(ssh, f)
-                if f.startswith('id_') and not f.endswith('.pub') and os.path.isfile(p):
-                    mode = oct(os.stat(p).st_mode & 0o777)[2:]
-                    if mode[-1] in '1234567' or mode[-2] in '1234567':
-                        self.add('HIGH','cred','ssh_perm', f=f, mode=mode)
+                if f.endswith('.pub') or not os.path.isfile(p):
+                    continue
+                mode = oct(os.stat(p).st_mode & 0o777)[2:]
+                loose = mode[-1] in '1234567' or mode[-2] in '1234567'
+                if not loose:
+                    continue
+                is_key = f.startswith('id_') or _is_private_key_file(p)  # 내용 기반(이름 바꾼 키 적발)
+                if is_key:
+                    self.add('HIGH','cred','ssh_perm', f=f, mode=mode)
         hists = ['.zsh_history','.bash_history']
         if OS == 'win': hists = [os.path.join('AppData','Roaming','Microsoft','Windows','PowerShell','PSReadLine','ConsoleHost_history.txt')]
         for hist in hists:
@@ -266,12 +292,24 @@ class Scan:
         어떤 환경 경로도 코드에 두지 않는다(운용측이 env/--backup-repos로 주입)."""
         repos = [p for p in os.environ.get('SECSCAN_BACKUP_REPOS','').split(':') if p]
         repos += [os.getcwd()]
+        now = datetime.datetime.now().timestamp()
         for r in repos:
-            if not os.path.isdir(os.path.join(os.path.expanduser(r), '.git')): continue
-            ts = run(['git','-C',os.path.expanduser(r),'log','-1','--format=%ct'])
-            try: age_s = datetime.datetime.now().timestamp() - int(ts.strip())
-            except Exception: continue
-            if age_s <= max_age_h*3600: return r, int(age_s//60)
+            rp = os.path.expanduser(r)
+            if not os.path.isdir(os.path.join(rp, '.git')): continue
+            # 가짜 신선도 위장 거부 — 미래일자·빈 커밋(내용 0)은 백업으로 인정 안 함.
+            log = run(['git','-C',rp,'log','-20','--format=%H %ct'])
+            for line in log.splitlines():
+                parts = line.split()
+                if len(parts) < 2: continue
+                h = parts[0]
+                try: ct = int(parts[1])
+                except Exception: continue
+                age_s = now - ct
+                if age_s < -300: continue          # 미래일자(5분 오차 초과)=위조 → 무시
+                if age_s > max_age_h*3600: break    # 이 커밋 이후는 더 과거 → 중단
+                files = run(['git','-C',rp,'log','-1','--format=','--name-only',h])
+                if files.strip():                   # 내용 있는 최근 커밋 = 실제 백업
+                    return r, int(age_s//60)
         return None, None
 
     def backup(self):
