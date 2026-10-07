@@ -18,3 +18,13 @@ sending a single byte off your machine.
 
 ## Checks: credentials · network · OS hardening · AI-agent risk · backup
 ## License: open-core (free core, paid Pro). Zero-exfil is verifiable in source.
+
+## Docs
+- [Install (EN)](docs/INSTALL_EN.md) · [설치 (KO)](docs/INSTALL.md)
+- [FAQ (EN)](docs/FAQ_EN.md) · [FAQ (KO)](docs/FAQ.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
+
+## Feedback becomes releases
+`ai-hacking-defense feedback` builds a masked, fully-previewed report draft — nothing is ever sent automatically; you submit it yourself on GitHub. Issues are collected into a backlog daily and shipped as releases with a public CHANGELOG, so your report visibly becomes the next version.
+
+## Platforms (honest note)
+macOS: all checks verified. Windows/Linux: experimental — runs, but not yet fully verified.

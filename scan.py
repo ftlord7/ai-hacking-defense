@@ -753,7 +753,67 @@ def render_html(rep):
     return (_DASHBOARD.replace('__L__', rep['lang']).replace('/*DATA*/', data)
             .replace('/*UI*/', ui).replace('/*CHECKS*/', chk).replace('/*CARDS*/', cards))
 
+# ── 피드백 (SEC-003) — opt-in 전용. 자동 전송 0: 전문 미리보기 후 사용자가 GitHub 페이지에서 직접 제출 ──
+REPO_URL = 'https://github.com/ftlord7/ai-hacking-defense'
+FEEDBACK_TYPES = {'1': 'bug', '2': 'false-positive', '3': 'feature'}
+
+
+def _mask(text, home=None):
+    """개인 경로·사용자명 마스킹 — 피드백 본문에 실경로/계정명이 남지 않게 한다."""
+    home = home or HOME
+    user = getpass.getuser()
+    text = text.replace(home, '~')
+    if user:
+        text = re.sub(re.escape(user), '<user>', text)
+    return text
+
+
+def _feedback_summary():
+    try:
+        rep = json.load(open(os.path.join(os.getcwd(), 'scan_result.json'), encoding='utf-8'))
+    except Exception:
+        return '(no local scan result / 스캔 요약 없음)'
+    lines = [f"score {rep.get('score')} · high {rep.get('high')} · med {rep.get('med')} · os {rep.get('os')}"]
+    lines += [f"- [{f.get('sev')}] {f.get('title')}" for f in rep.get('findings', [])[:8]]
+    return _mask('\n'.join(lines))
+
+
+def feedback(argv):
+    ap = argparse.ArgumentParser(prog='ai-hacking-defense feedback')
+    ap.add_argument('--type', choices=['bug', 'false-positive', 'feature'])
+    ap.add_argument('--desc', default='')
+    ap.add_argument('--dry', action='store_true', help='print preview only; never opens browser')
+    a = ap.parse_args(argv)
+    t = a.type
+    if not t and not a.dry:
+        print('피드백 유형 / type: 1) 버그 Bug  2) 오탐 False positive  3) 기능 제안 Feature')
+        t = FEEDBACK_TYPES.get(input('> ').strip(), 'bug')
+    t = t or 'bug'
+    desc = a.desc or ('' if a.dry else input('한 줄 설명 / one-line description:\n> ').strip())
+    body = (f"### Type\n{t}\n\n### Description\n{_mask(desc)}\n\n"
+            f"### Scan summary (masked, optional — delete if you prefer)\n{_feedback_summary()}\n\n"
+            f"### Env\n{sys.platform} · python {sys.version.split()[0]}\n")
+    print('\n===== 전송될 내용 전문 미리보기 / FULL PREVIEW =====')
+    print(body)
+    print('===== 미리보기 끝 — 이 도구는 아무것도 자동 전송하지 않습니다(제출은 GitHub 페이지에서 직접). =====')
+    if a.dry:
+        return 0
+    yn = input('브라우저로 GitHub 이슈 작성 페이지를 열까요? / open the GitHub issue page? [y/N] > ').strip().lower()
+    if yn == 'y':
+        import urllib.parse
+        import webbrowser
+        tpl = {'bug': 'bug_report.md', 'false-positive': 'false_positive.md', 'feature': 'feature_request.md'}[t]
+        q = urllib.parse.urlencode({'template': tpl, 'title': f'[{t}] ' + (desc[:60] or 'feedback'), 'body': body})
+        webbrowser.open(f'{REPO_URL}/issues/new?{q}')
+        print('브라우저를 열었습니다 — 내용 확인 후 Submit은 직접 눌러 주세요. / Review and submit yourself.')
+    else:
+        print('취소 — 아무것도 전송되지 않았습니다. / Cancelled, nothing sent.')
+    return 0
+
+
 def main():
+    if sys.argv[1:2] == ['feedback']:
+        sys.exit(feedback(sys.argv[2:]))
     ap = argparse.ArgumentParser()
     ap.add_argument('--lang', default='ko', choices=['ko','en'])
     ap.add_argument('--home', default=HOME)
