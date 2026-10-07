@@ -1,0 +1,6 @@
+__pycache__/
+dist/
+build/
+*.egg-info/
+scan_result.json
+security_report.html

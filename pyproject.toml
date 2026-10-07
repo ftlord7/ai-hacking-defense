@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-hacking-defense"
+version = "0.1.0"
+description = "Non-intrusive, zero-exfiltration personal security self-audit for the AI-hacking era."
+readme = "en/README_EN.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+keywords = ["security", "audit", "privacy", "ai-agent", "hardening", "self-audit", "zero-exfiltration"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Topic :: Security",
+]
+
+[project.urls]
+Homepage = "https://github.com/ftlord7/ai-hacking-defense"
+
+[project.scripts]
+ai-hacking-defense = "scan:main"
+
+[tool.setuptools]
+py-modules = ["scan"]
