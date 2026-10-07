@@ -244,12 +244,12 @@ class Scan:
         self.add('INFO','ai','ai_inject')
 
     def _repo_backup_recent(self, max_age_h=3):
-        """저장소 자동 커밋 백업 실증 — SECSCAN_BACKUP_REPOS(콜론 구분)·현재 폴더·일반 관례
-        경로(~/projects 등) 중 git 최근 커밋이 max_age_h 이내면 (경로, 경과분) 반환. 주기 커밋을
-        백업으로 인정('Time Machine만 = 백업' 정의가 낳은 '최근 백업 없음' 오탐 정정). 환경 고유
-        경로는 코드에 넣지 않는다 — 운용측이 env/--backup-repos로 주입."""
+        """저장소 자동 커밋 백업 실증 — SECSCAN_BACKUP_REPOS(콜론 구분) 경로와 cwd(git repo일
+        때만) 중 git 최근 커밋이 max_age_h 이내면 (경로, 경과분) 반환. 주기 커밋을 백업으로
+        인정('Time Machine만 = 백업' 정의가 낳은 '최근 백업 없음' 오탐 정정). 기본값은 cwd뿐 —
+        어떤 환경 경로도 코드에 두지 않는다(운용측이 env/--backup-repos로 주입)."""
         repos = [p for p in os.environ.get('SECSCAN_BACKUP_REPOS','').split(':') if p]
-        repos += [os.getcwd()] + [os.path.join(self.home, d) for d in ('projects', 'work', 'dev', 'workspace')]
+        repos += [os.getcwd()]
         for r in repos:
             if not os.path.isdir(os.path.join(os.path.expanduser(r), '.git')): continue
             ts = run(['git','-C',os.path.expanduser(r),'log','-1','--format=%ct'])
