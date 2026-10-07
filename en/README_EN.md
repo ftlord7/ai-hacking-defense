@@ -34,7 +34,7 @@ Detection catches common evasions, not all. Known gaps we have not closed yet:
 - SSH private-key detection reads the PEM header in the first 8KB; a key hidden past 8KB, or in a non-PEM container (e.g. PuTTY `.ppk`), may be missed.
 - Backup freshness rejects future-dated and empty commits, but a single trivial commit made just now still counts as a "recent backup" — it does not verify the backup is meaningful or restorable.
 - Wi-Fi checks read only your own current connection (encryption type, DNS servers, ARP for gateway-MAC duplication). Router-side items (WPS, the default admin password, firmware) are off-device and are NOT auto-checked — check them yourself in the router admin page. A duplicated gateway MAC is reported as a *possible* MITM, not a verdict (proxy ARP, mesh routers, or a VPN can cause it legitimately).
-- Vault/secret-access detection catches common obfuscations (base64, bidi, whitespace/quote split, and bare interpreter reads like `open(vault).read()`), but it is best-effort, not a guarantee: a read assigned to a variable and then printed/sent, a tab-escaped command (e.g. `ca` + TAB + `t`), or copying/sourcing the file (`cp`, `source`) can still be missed — new evasions always exist.
+- Vault/secret-access detection catches common obfuscations (base64, bidi, whitespace/quote split, and bare interpreter reads like `open(vault).read()`), but it is best-effort, not a guarantee: a read assigned to a variable and then printed/sent, a backslash-escaped command (e.g. `ca\t`), or copying/sourcing the file (`cp`, `source`) can still be missed — new evasions always exist.
 - Detection rates (e.g. a 72-cell internal battery) are measured on our own corpora; real-world coverage will differ, and new evasions always exist.
 
 
