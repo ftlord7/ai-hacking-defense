@@ -28,3 +28,16 @@ sending a single byte off your machine.
 
 ## Platforms (honest note)
 macOS: all checks verified. Windows/Linux: experimental — runs, but not yet fully verified.
+
+
+## What's in the package (v0.1.2)
+Three stdlib-only command-line tools:
+- `ahd-scan` (also `ai-hacking-defense`) — the 5-area security self-audit + HTML report. **Zero network.**
+- `ahd-agent-guard` — prompt-injection detector (warn-only, no blocking). Detects 29/30 (96.7%) of a public evasion corpus at 0 false positives in our test. **Zero network.** `echo "<text>" | ahd-agent-guard`
+- `ahd-threat-feed` — refreshes public vulnerability feeds (OSV, CISA KEV, EPSS) to a local cache. **GET-only** of public databases from a fixed allowlist — none of your data is ever sent.
+
+### "Zero-exfiltration" precisely
+`ahd-scan` and `ahd-agent-guard` make **no network calls at all**. `ahd-threat-feed` only *downloads* public vulnerability data (GET-only, allowlisted hosts) and uploads nothing. In all cases, **none of your files, secrets, or data ever leave your machine** — that is what zero-exfiltration means here.
+
+### Not in the package (internal-only, not advertised)
+This package detects and reports. It does **not** auto-block, run a background dashboard, or hook into your pipelines. "Warn-only" is literal — see each report card's limits.
