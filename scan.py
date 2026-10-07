@@ -244,11 +244,12 @@ class Scan:
         self.add('INFO','ai','ai_inject')
 
     def _repo_backup_recent(self, max_age_h=3):
-        """저장소 자동 커밋 백업 실증 — SECSCAN_BACKUP_REPOS(콜론 구분) 또는 기본 경로의
-        git 최근 커밋이 max_age_h 이내면 (경로, 경과분) 반환. 매시간 launchd 커밋을 백업으로 인정
-        (SEC_CARD_REV_1007: 'Time Machine만 = 백업' 정의가 낳은 '최근 백업 없음' 오탐 정정)."""
+        """저장소 자동 커밋 백업 실증 — SECSCAN_BACKUP_REPOS(콜론 구분)·현재 폴더·일반 관례
+        경로(~/projects 등) 중 git 최근 커밋이 max_age_h 이내면 (경로, 경과분) 반환. 주기 커밋을
+        백업으로 인정('Time Machine만 = 백업' 정의가 낳은 '최근 백업 없음' 오탐 정정). 환경 고유
+        경로는 코드에 넣지 않는다 — 운용측이 env/--backup-repos로 주입."""
         repos = [p for p in os.environ.get('SECSCAN_BACKUP_REPOS','').split(':') if p]
-        repos += [os.path.join(self.home, '.openclaw', 'workspace', 'trading')]
+        repos += [os.getcwd()] + [os.path.join(self.home, d) for d in ('projects', 'work', 'dev', 'workspace')]
         for r in repos:
             if not os.path.isdir(os.path.join(os.path.expanduser(r), '.git')): continue
             ts = run(['git','-C',os.path.expanduser(r),'log','-1','--format=%ct'])
@@ -759,7 +760,10 @@ def main():
     outdir = os.getcwd()  # 설치형 CLI: 결과물은 현재 폴더에
     ap.add_argument('--json', default=os.path.join(outdir, 'scan_result.json'))
     ap.add_argument('--html', default=os.path.join(outdir, 'security_report.html'))
+    ap.add_argument('--backup-repos', default='', help='git repo paths (colon-separated) counted as backup evidence')
     a = ap.parse_args()
+    if a.backup_repos:
+        os.environ['SECSCAN_BACKUP_REPOS'] = a.backup_repos
     rep = Scan(a.home, a.lang).run_all()
     json.dump(rep, open(a.json,'w'), ensure_ascii=False, indent=1)
     open(a.html,'w',encoding='utf-8').write(render_html(rep))
