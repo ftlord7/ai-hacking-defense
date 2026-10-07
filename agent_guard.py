@@ -453,6 +453,13 @@ _VAULT_RE = re.compile(r"(?i)(?:secrets?|vault|credentials?)[^/\s]*\.(?:md|json|
 _OUTCMD_RE = re.compile(
     r"(?<![\w./-])(grep|egrep|fgrep|rg|cat|head|tail|sed|awk|less|more|strings|cut|paste|column|sort|uniq|bat|nl|od|xxd|hexdump|tee)(?![\w-])"
 )
+# SEC-006-R3: 인터프리터 경유 금고 읽기(cat/grep 회피). open(...).read()·eval/exec 등.
+_INTERP_READ_RE = re.compile(
+    r"(?<![\w./-])(python\d?|python3|node|ruby|perl|php|deno|bun|osascript)\b.{0,100}?(open\s*\(|\.read\s*\(|readFile|read_file|File\.read|get_contents|readlines|\beval\b|\bexec\b)",
+    re.I | re.S,
+)
+# 변수 할당된 읽기(x = open(...).read())는 시스템 정상 무출력 읽기 → 허용(허위차단 금지).
+_ASSIGN_READ_RE = re.compile(r"[\w.\[\]]+\s*=\s*[^=].{0,60}?(open\s*\(|\.read\s*\(|readFile|File\.read)", re.I | re.S)
 _EGRESS_CLASS = {
     "E1": re.compile(r"webfetch|firecrawl_(?:scrape|search|crawl|map)|browser_navigate|browser_evaluate|\bcurl\b|\bwget\b", re.I),
     "E2": re.compile(r"gmail__(?:send|reply|forward|create_draft)|slack_(?:send|schedule)|drive__(?:share|create)|notion-(?:create|update|send)|tiktok_publish|publish_website|deploy_website|calendar__(?:create|update)", re.I),
@@ -474,11 +481,15 @@ def tool_class(tool_name, tool_input=""):
 
 def vault_touch(cmd):
     """vault_guard 연계: 금고 접근이 있었는지 여부만 판정(출력성 명령 동시 매칭 = vault_guard가 deny할 대상).
-    SEC-006: 회피 변형(base64/유니코드/bidi/공백·따옴표분할/hex)을 정규화해 재조립 탐지 + 인터프리터 읽기 포함."""
+    SEC-006: 회피 변형(base64/유니코드/bidi/공백·따옴표분할/hex)을 정규화해 재조립 탐지.
+    SEC-006-R3: 인터프리터 경유 금고 읽기(cat/grep 회피)도 deny 대상 — 단 '변수 할당' 무출력 읽기(x=open().read())는
+    시스템 정상 사용으로 허용(shadow 불변식·무출력 읽기 원칙 보존). 운영 vault_guard.py(내부 훅)는 무접촉."""
     variants = norm_variants(cmd or "")
     v = any(_VAULT_RE.search(x) for x in variants)
     out = any(_OUTCMD_RE.search(x) for x in variants)
-    return {"vault": v, "vault_guard_would_deny": v and out}
+    # 인터프리터 읽기 중 변수 할당이 없는 bare read = cat/grep 회피 접근 → deny. 할당(x=)은 정상 → 허용.
+    evasive = any(_INTERP_READ_RE.search(x) and not _ASSIGN_READ_RE.search(x) for x in variants)
+    return {"vault": v, "vault_guard_would_deny": v and (out or evasive)}
 
 
 # ── 기록(경고모드의 본체) + 세션 상관 ───────────────────────────────
